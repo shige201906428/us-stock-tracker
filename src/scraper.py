@@ -19,7 +19,7 @@ def get_stock_data():
                 if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
                     ticker_list.append(symbol)
 
-    ticker_list = list(dict.fromkeys(ticker_list))[:100]
+    ticker_list = list(dict.fromkeys(ticker_list))[:400]
     results = []
     print(f"{len(ticker_list)}銘柄の取得を開始...")
 
