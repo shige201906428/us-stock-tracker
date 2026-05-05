@@ -67,9 +67,29 @@
         document.getElementById('tableBody').innerHTML = data.map(row => `<tr>${headers.map(h => {
             let v = row[h] || '-';
             if(h === "Ticker") return `<td><a class="ticker-link" href="https://www.tradingview.com/symbols/${v}/" target="_blank">${v}</a></td>`;
-            if(h === "⑭判定") {
-                let color = v === "超割安" ? "red" : (v === "割安" ? "orange" : "inherit");
-                return `<td style="color:${color}; font-weight:bold">${v}</td>`;
+            // index.html の render 関数内の判定部分を書き換え
+
+            if (h === "⑭判定") {
+                let bgColor = "transparent"; // 背景色
+                let textColor = "inherit";     // 文字色
+                let fontWeight = "normal";
+            
+                if (val === "超割安") {
+                    bgColor = "#ffcccc"; // 薄い赤
+                    textColor = "#cc0000"; // 濃い赤
+                    fontWeight = "bold";
+                } else if (val === "割安") {
+                    bgColor = "#fff3cd"; // 薄いオレンジ
+                    textColor = "#856404"; // 濃い茶色
+                    fontWeight = "bold";
+                } else if (val === "適正") {
+                    bgColor = "#d4edda"; // 薄い緑
+                    textColor = "#155724"; // 濃い緑
+                } else if (val === "割高") {
+                    textColor = "#721c24"; // 文字だけ赤っぽく
+                }
+            
+                return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${val}</td>`;
             }
             if(h === "⑤業界/セクター") return `<td><span class="badge">${v}</span></td>`;
             return `<td>${formatM(v, h)}</td>`;
