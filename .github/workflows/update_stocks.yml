@@ -1,0 +1,33 @@
+name: US Stock Data Update
+
+on:
+  schedule:
+    # 日本時間 06:00 (UTC 21:00) と 21:00 (UTC 12:00) に実行
+    - cron: '0 12,21 * * *'
+  workflow_dispatch: # ボタンから手動実行も可能
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install yfinance pandas
+          
+      - name: Run Scraper
+        run: python src/scraper.py
+        
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/stock_data.csv
+          git commit -m "定期更新: $(date)"
+          git push
