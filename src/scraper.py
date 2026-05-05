@@ -11,7 +11,6 @@ def get_stock_data():
         print("Error: tickers.txt not found.")
         return
 
-    # ティッカー抽出（日本語混じり対応）
     with open('tickers.txt', 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.split(',')
@@ -30,21 +29,29 @@ def get_stock_data():
             info = stock.info
             financials = stock.financials
             
-            # 売上履歴の取得（新しい順にソート）
+            # 売上履歴の取得
             rev_history = []
             if 'Total Revenue' in financials.index:
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 rev_history = sorted_fin.loc['Total Revenue'].tolist()
 
-            # --- ここから追加：純利益の確実な取得 ---
+            # 純利益の取得
             net_income = info.get("netIncome")
-            # infoで取れない場合、財務諸表(financials)から最新の値を抜き出す
             if not net_income and 'Net Income' in financials.index:
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 net_income = sorted_fin.loc['Net Income'].iloc[0]
-            # --- ここまで追加 ---
 
-            # フェアバリュー計算 (グレアム数: √(22.5 * EPS * BPS))
+            # --- 利益率の直接計算 ---
+            revenue = info.get("totalRevenue")
+            margin = "-"
+            if net_income and revenue and revenue > 0:
+                margin = f"{(net_income / revenue):.2%}"
+
+            # --- 配当率の適正化 ---
+            dy_raw = info.get('dividendYield')
+            dividend_yield = f"{dy_raw:.2%}" if dy_raw else "0.00%"
+
+            # フェアバリュー計算
             eps = info.get("forwardEps")
             bps = info.get("bookValue")
             price = info.get("currentPrice")
@@ -58,17 +65,6 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
-            # --- 利益率の計算（直接計算で正確に出す） ---
-            revenue = info.get("totalRevenue")
-            margin = "-"
-            if net_income and revenue and revenue > 0:
-                margin = f"{(net_income / revenue):.2%}"
-
-            # --- 配当率の計算（yfinanceの仕様に合わせて修正） ---
-            # dividendYieldは通常 0.0295 (=2.95%) のような形式で入っています
-            dy_raw = info.get('dividendYield')
-            dividend_yield = f"{dy_raw:.2%}" if dy_raw else "0.00%"
-
             results.append({
                 "No.": len(results) + 1,
                 "Ticker": symbol,
@@ -80,8 +76,8 @@ def get_stock_data():
                 "⑧-1 前年売上高": rev_history[1] if len(rev_history) > 1 else None,
                 "⑧-2 前々年売上高": rev_history[2] if len(rev_history) > 2 else None,
                 "⑨当期純利益": net_income,
-                "利益率": margin,         # 直接計算した値
-                "配当率": dividend_yield,  # 正しくフォーマットした値
+                "利益率": margin,
+                "配当率": dividend_yield,
                 "⑩来期予想EPS": eps,
                 "⑪1株純資産(BPS)": bps,
                 "⑫時価総額": info.get("marketCap"),
@@ -89,8 +85,7 @@ def get_stock_data():
                 "⑭判定": status,
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            
-            time.sleep(1.0) # 負荷軽減
+            time.sleep(1.0)
         except Exception as e:
             print(f"Error {symbol}: {e}")
 
