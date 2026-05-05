@@ -36,6 +36,14 @@ def get_stock_data():
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 rev_history = sorted_fin.loc['Total Revenue'].tolist()
 
+            # --- ここから追加：純利益の確実な取得 ---
+            net_income = info.get("netIncome")
+            # infoで取れない場合、財務諸表(financials)から最新の値を抜き出す
+            if not net_income and 'Net Income' in financials.index:
+                sorted_fin = financials.sort_index(axis=1, ascending=False)
+                net_income = sorted_fin.loc['Net Income'].iloc[0]
+            # --- ここまで追加 ---
+
             # フェアバリュー計算 (グレアム数: √(22.5 * EPS * BPS))
             eps = info.get("forwardEps")
             bps = info.get("bookValue")
@@ -60,7 +68,7 @@ def get_stock_data():
                 "⑧当期売上高": info.get("totalRevenue"),
                 "⑧-1 前年売上高": rev_history[1] if len(rev_history) > 1 else None,
                 "⑧-2 前々年売上高": rev_history[2] if len(rev_history) > 2 else None,
-                "⑨当期純利益": info.get("netIncome"),
+                "⑨当期純利益": net_income, # 修正した変数を使用
                 "⑩来期予想EPS": eps,
                 "⑪1株純資産(BPS)": bps,
                 "⑫時価総額": info.get("marketCap"),
@@ -75,6 +83,7 @@ def get_stock_data():
     df = pd.DataFrame(results)
     os.makedirs('data', exist_ok=True)
     df.to_csv('data/stock_data.csv', index=False, encoding='utf-8-sig')
+    print("CSV更新完了")
 
 if __name__ == "__main__":
     get_stock_data()
