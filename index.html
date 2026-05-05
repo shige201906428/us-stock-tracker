@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>US Stock Screener</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-　  <style>
+    <style>
     :root { --bg: #f5f7fa; --primary: #3498db; --text: #2c3e50; --border: #e1e8ed; }
     body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
     header { background: #2c3e50; color: white; padding: 0.8rem; text-align: center; border-radius: 6px; margin-bottom: 15px; }
@@ -15,7 +15,7 @@
     .table-wrapper { background: white; border-radius: 6px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     table { width: 100%; border-collapse: collapse; min-width: 1400px; }
     th { background: #f8f9fa; padding: 10px 8px; cursor: pointer; border-bottom: 2px solid var(--border); font-size: 11px; color: #7f8c8d; }
-    td { padding: 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; white-space: nowrap; } /* フォントを12pxに縮小 */
+    td { padding: 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; white-space: nowrap; }
     td:nth-child(2), td:nth-child(6), td:last-child { text-align: left; }
     .ticker-link { color: var(--primary); text-decoration: none; font-weight: bold; }
     .badge { background: #eee; padding: 2px 6px; border-radius: 8px; font-size: 10px; }
@@ -38,10 +38,14 @@
     let asc = true;
 
     function formatM(val, h) {
-        if (h.includes("売上高") || h.includes("利益") || h.includes("時価総額") || h.includes("営業CF")) {
+        // Million表示に変換したい列名だけを配列に入れる
+        const moneyColumns = ["⑧当期売上高", "⑧-1 前年売上高", "⑧-2 前々年売上高", "⑨当期純利益", "⑫時価総額", "③営業CF"];
+        
+        if (moneyColumns.includes(h)) {
             let n = parseFloat(val);
             return isNaN(n) ? val : (n / 1000000).toLocaleString(undefined, {minimumFractionDigits: 2}) + " M$";
         }
+        // 利益率、配当率、EPSなどはそのまま表示
         return val;
     }
 
@@ -57,6 +61,7 @@
     }
 
     function render(data) {
+        if (data.length === 0) return;
         const headers = Object.keys(data[0]);
         document.getElementById('tableHead').innerHTML = `<tr>${headers.map(h => `<th onclick="sortT('${h}')">${h}</th>`).join('')}</tr>`;
         document.getElementById('tableBody').innerHTML = data.map(row => `<tr>${headers.map(h => {
