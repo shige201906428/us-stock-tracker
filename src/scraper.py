@@ -58,6 +58,17 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
+            # --- 利益率の計算（直接計算で正確に出す） ---
+            revenue = info.get("totalRevenue")
+            margin = "-"
+            if net_income and revenue and revenue > 0:
+                margin = f"{(net_income / revenue):.2%}"
+
+            # --- 配当率の計算（yfinanceの仕様に合わせて修正） ---
+            # dividendYieldは通常 0.0295 (=2.95%) のような形式で入っています
+            dy_raw = info.get('dividendYield')
+            dividend_yield = f"{dy_raw:.2%}" if dy_raw else "0.00%"
+
             results.append({
                 "No.": len(results) + 1,
                 "Ticker": symbol,
@@ -65,12 +76,12 @@ def get_stock_data():
                 "②自己資本比率": f"{(info.get('totalCashFromOperatingActivities', 0) / info.get('totalAssets', 1)):.2%}" if info.get('totalAssets') else "N/A",
                 "③営業CF": info.get("operatingCashflow"),
                 "⑤業界/セクター": f"{info.get('sector', '')} / {info.get('industry', '')}",
-                "⑧当期売上高": info.get("totalRevenue"),
+                "⑧当期売上高": revenue,
                 "⑧-1 前年売上高": rev_history[1] if len(rev_history) > 1 else None,
                 "⑧-2 前々年売上高": rev_history[2] if len(rev_history) > 2 else None,
                 "⑨当期純利益": net_income,
-                "利益率": f"{info.get('profitMargins', 0):.2%}" if info.get('profitMargins') else "-", # 追加
-                "配当率": f"{info.get('dividendYield', 0):.2%}" if info.get('dividendYield') else "0.00%", # 追加
+                "利益率": margin,         # 直接計算した値
+                "配当率": dividend_yield,  # 正しくフォーマットした値
                 "⑩来期予想EPS": eps,
                 "⑪1株純資産(BPS)": bps,
                 "⑫時価総額": info.get("marketCap"),
@@ -78,6 +89,7 @@ def get_stock_data():
                 "⑭判定": status,
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
+            
             time.sleep(1.0) # 負荷軽減
         except Exception as e:
             print(f"Error {symbol}: {e}")
