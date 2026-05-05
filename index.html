@@ -73,7 +73,7 @@
     let currentSort = { col: null, asc: true };
 
     function formatMillion(val, headerName) {
-        const targets = ["⑧当期売上高", "⑨当期純利益", "⑫時価総額", "③営業CF"];
+        const targets = ["⑧当期売上高", "⑧-1 前年売上高", "⑧-2 前々年売上高", "⑨当期純利益", "⑫時価総額", "③営業CF"];
         if (targets.includes(headerName)) {
             const num = parseFloat(val);
             if (!isNaN(num)) {
