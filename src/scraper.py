@@ -8,10 +8,10 @@ import re
 def get_stock_data():
     ticker_list = []
     if not os.path.exists('tickers.txt'):
-        print("Error: tickers.txt が見つかりません。")
+        print("Error: tickers.txt not found.")
         return
 
-    # ティッカーの抽出ロジック（日本語スルー対応）
+    # ティッカー抽出（日本語混じり対応）
     with open('tickers.txt', 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.split(',')
@@ -21,28 +21,36 @@ def get_stock_data():
                     ticker_list.append(symbol)
 
     ticker_list = list(dict.fromkeys(ticker_list))[:100]
-    
     results = []
-    print(f"有効なティッカーを {len(ticker_list)} 件確認しました。取得を開始します...")
+    print(f"{len(ticker_list)}銘柄の取得を開始...")
 
     for symbol in ticker_list:
         try:
-            print(f"取得中: {symbol}...")
             stock = yf.Ticker(symbol)
             info = stock.info
+            financials = stock.financials
             
-            # 財務諸表の取得
-            financials = stock.financials 
-            
-            # 売上高履歴の安全な取得
-            # .iloc[0] が最新になるよう、日付でソートを確認
+            # 売上履歴の取得（新しい順にソート）
             rev_history = []
             if 'Total Revenue' in financials.index:
-                # 日付の新しい順に並び替え
-                sorted_financials = financials.sort_index(axis=1, ascending=False)
-                rev_history = sorted_financials.loc['Total Revenue'].tolist()
+                sorted_fin = financials.sort_index(axis=1, ascending=False)
+                rev_history = sorted_fin.loc['Total Revenue'].tolist()
 
-            row = {
+            # フェアバリュー計算 (グレアム数: √(22.5 * EPS * BPS))
+            eps = info.get("forwardEps")
+            bps = info.get("bookValue")
+            price = info.get("currentPrice")
+            fv = (22.5 * eps * bps) ** 0.5 if (eps and bps and eps > 0 and bps > 0) else None
+            
+            status = "-"
+            if fv and price:
+                ratio = price / fv
+                if ratio < 0.7: status = "超割安"
+                elif ratio < 1.0: status = "割安"
+                elif ratio < 1.3: status = "適正"
+                else: status = "割高"
+
+            results.append({
                 "No.": len(results) + 1,
                 "Ticker": symbol,
                 "①総株式数": info.get("sharesOutstanding"),
@@ -53,25 +61,20 @@ def get_stock_data():
                 "⑧-1 前年売上高": rev_history[1] if len(rev_history) > 1 else None,
                 "⑧-2 前々年売上高": rev_history[2] if len(rev_history) > 2 else None,
                 "⑨当期純利益": info.get("netIncome"),
-                "⑩来期予想EPS": info.get("forwardEps"),
-                "⑪1株純資産(BPS)": info.get("bookValue"),
+                "⑩来期予想EPS": eps,
+                "⑪1株純資産(BPS)": bps,
                 "⑫時価総額": info.get("marketCap"),
+                "⑬フェアバリュー": round(fv, 2) if fv else "-",
+                "⑭判定": status,
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            results.append(row)
-            
-            # 100社取得時は少し長めに待機するとエラー（429 Too Many Requests）を防げます
-            time.sleep(1.0) 
-            
+            })
+            time.sleep(1.0) # 負荷軽減
         except Exception as e:
-            print(f"Failed to fetch {symbol}: {e}")
+            print(f"Error {symbol}: {e}")
 
-    # CSV保存
     df = pd.DataFrame(results)
     os.makedirs('data', exist_ok=True)
-    output_path = 'data/stock_data.csv'
-    df.to_csv(output_path, index=False, encoding='utf-8-sig')
-    print(f"完了！ {output_path} に保存されました。")
+    df.to_csv('data/stock_data.csv', index=False, encoding='utf-8-sig')
 
 if __name__ == "__main__":
     get_stock_data()
