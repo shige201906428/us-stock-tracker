@@ -47,17 +47,12 @@ def get_stock_data():
             if net_income and revenue and revenue > 0:
                 margin = f"{(net_income / revenue):.2%}"
 
-            # # --- 配当率の適正化 ---
-            # dy_raw = info.get('dividendYield')
-            # dividend_yield = f"{dy_raw:.2%}" if dy_raw else "0.00%"
-
-　　　　　　　# --- 配当率の適正化（数値を100分の1にする） ---
+            # --- 配当率の適正化（数値を100分の1にする） ---
             dy_raw = info.get('dividendYield')
-            # もしデータが 2.95 (295%) のように入っていた場合を考慮し、0.01倍する
-            dividend_yield = f"{(dy_raw * 0.01):.2%}" if dy_raw else "0.00%"
-
-
-            
+            dividend_yield = "0.00%"
+            if dy_raw is not None:
+                # 取得した数値(dy_raw)を100で割ってから%表記にする
+                dividend_yield = f"{(float(dy_raw) / 100):.2%}"
 
             # フェアバリュー計算
             eps = info.get("forwardEps")
