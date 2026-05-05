@@ -1,0 +1,27 @@
+米国株100社 業種別リスト（カンマ区切り）
+■ 情報技術（IT・半導体）
+AAPL, MSFT, NVDA, AVGO, ORCL, CSCO, ADI, TXN, QCOM, AMD, NOW, FISV, MU, AMAT, LRCX, ADSK, PANW, IBM, INTU, HPQ
+
+■ 通信サービス・メディア
+GOOGL, META, VZ, DIS, T, NFLX, CMCSA, CHTR, TMUS, ATVI
+
+■ 一般消費財・サービス（小売・車・飲食）
+AMZN, TSLA, HD, MCD, NKE, LOW, SBUX, TJX, BKNG, FDX, MAR, KDP, F, GM, EBAY, BKNG, AZO, ORLY, LVS, YUM
+
+■ 生活必需品（飲料・食品・日用品）
+WMT, PG, KO, PEP, COST, PM, EL, MO, MDLZ, CL, KMB, STZ, TGT, DG, GIS
+
+■ 金員・決済
+JPM, V, MA, BAC, MS, GS, BLK, SPGI, AXP, SCHW, C, MCO, CB, MMC, USB, PNC, TFC, MET, AJG, TRV
+
+■ ヘルスケア・バイオ
+UNH, JNJ, LLY, ABBV, PFE, TMO, ABT, DHR, AMGN, MDT, GILD, ELV, SYK, REGN, VRTX, CI, BSX, BDX, HCA, ISRG
+
+■ エネルギー・素材
+CVX, XOM, SLB, COP, EOG, MPC, PSX, VLO, LIN, APD, SHW, FCX, NEM
+
+■ 資本財・運輸
+UNP, CAT, HON, RTX, GE, DE, UPS, LMT, ITW, NOC, ETN, CSX, NSC, WM, RSG
+
+■ 公益事業・不動産
+NEE, DUK, SO, D, SRE, PLD, AMT, EQIX, CCI, PSA
