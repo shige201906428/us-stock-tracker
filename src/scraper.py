@@ -68,7 +68,9 @@ def get_stock_data():
                 "⑧当期売上高": info.get("totalRevenue"),
                 "⑧-1 前年売上高": rev_history[1] if len(rev_history) > 1 else None,
                 "⑧-2 前々年売上高": rev_history[2] if len(rev_history) > 2 else None,
-                "⑨当期純利益": net_income, # 修正した変数を使用
+                "⑨当期純利益": net_income,
+                "利益率": f"{info.get('profitMargins', 0):.2%}" if info.get('profitMargins') else "-", # 追加
+                "配当率": f"{info.get('dividendYield', 0):.2%}" if info.get('dividendYield') else "0.00%", # 追加
                 "⑩来期予想EPS": eps,
                 "⑪1株純資産(BPS)": bps,
                 "⑫時価総額": info.get("marketCap"),
