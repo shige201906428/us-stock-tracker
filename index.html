@@ -117,6 +117,23 @@
                     return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${v}</td>`;
                 }
                 
+                // --- ⑯保有列の処理 (NEW!) ---
+                if (h === "⑯保有") {
+                    let bgColor = "transparent";
+                    let textColor = "#2c3e50";
+                    let fontWeight = "normal";
+                    let displayText = v;
+                
+                    if (v === "保有中" || v === "YES" || v === "1") {
+                        bgColor = "#e3f2fd"; // ごく薄い青
+                        textColor = "#1976d2"; // 濃い青
+                        fontWeight = "bold";
+                        displayText = "✅ 保有中";
+                    }
+                    
+                    return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${displayText}</td>`;
+                }
+
                 if(h === "⑤業界/セクター") {
                     return `<td style="text-align:left;"><span class="badge">${v}</span></td>`;
                 }
