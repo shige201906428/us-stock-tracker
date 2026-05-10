@@ -10,7 +10,6 @@ permissions:
   contents: write
 
 env:
-  # Node.js 24を強制使用して警告を完全に消す
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -20,6 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
       - name: Set up Python
@@ -40,15 +40,19 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 認証エラーを物理的に防ぐためのURL再設定
+          # ★ここが重要：認証情報を強制セット
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           
-          git pull origin main --rebase
+          # 一度最新を強制取得して、自分の変更を上に乗せる
+          git fetch origin main
+          git reset --mixed origin/main
+          
           git add data/stock_data.csv
           
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
+            # 強制プッシュに近い形で確実に通す
             git push origin main
           else
-            echo "変更がないためスキップします"
+            echo "変更がないため終了します"
           fi
