@@ -10,10 +10,6 @@ on:
 permissions:
   contents: write
 
-env:
-  # Node.js 24を強制使用して警告を消す
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,7 +30,6 @@ jobs:
           pip install yfinance pandas
           
       - name: Run Scraper
-        # パターンB: src/scraper.py を実行
         run: python src/scraper.py
         
       - name: Commit and Push
@@ -42,6 +37,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
+          # 最新状態を取り込んでからpush
           git pull origin main --rebase
           git add data/stock_data.csv
           
@@ -49,5 +45,5 @@ jobs:
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
             git push origin main
           else
-            echo "変更なし：スキップします"
+            echo "変更がないためスキップしました"
           fi
