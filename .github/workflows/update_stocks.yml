@@ -6,12 +6,12 @@ on:
     - cron: '30 14 * * *' # 23:30 JST
   workflow_dispatch:
 
-# 全体で書き込み権限を許可
+# 書き込み権限を明示
 permissions:
   contents: write
 
 env:
-  # Node.js 20 警告対策：Node.js 24 を強制的に使用する
+  # Node.js 24を強制使用して警告を消す
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -34,25 +34,20 @@ jobs:
           pip install yfinance pandas
           
       - name: Run Scraper
+        # パターンB: src/scraper.py を実行
         run: python src/scraper.py
         
       - name: Commit and Push
-        env:
-          # push用のトークンを明示
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # リモートとの競合を避ける
           git pull origin main --rebase
-          
           git add data/stock_data.csv
           
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
-            # トークンを使用して確実にpush
             git push origin main
           else
-            echo "No changes to commit"
+            echo "変更なし：スキップします"
           fi
