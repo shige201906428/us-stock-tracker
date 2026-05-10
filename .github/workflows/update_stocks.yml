@@ -6,9 +6,14 @@ on:
     - cron: '30 14 * * *' # 23:30 JST
   workflow_dispatch:
 
-# 書き込み権限を明示
+# 権限をトップレベルで明示的に定義
 permissions:
   contents: write
+  pull-requests: write
+
+env:
+  # 警告を消し、最新エンジンを使用
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -17,12 +22,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # 認証情報をトークン経由で確実に保持
+          token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+          cache: 'pip' # 実行速度を上げるためのキャッシュ
           
       - name: Install dependencies
         run: |
@@ -37,13 +45,19 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 最新状態を取り込んでからpush
-          git pull origin main --rebase
+          # コンフリクトを強制回避して最新を取り込む
+          git fetch origin main
+          git reset --hard origin/main
+          
+          # 再度Pythonを実行して最新の状態にする（念のため）
+          python src/scraper.py
+          
           git add data/stock_data.csv
           
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
+            # 強制的にプッシュするのではなく、安全に同期
             git push origin main
           else
-            echo "変更がないためスキップしました"
+            echo "変更がありません"
           fi
