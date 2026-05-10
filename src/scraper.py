@@ -33,10 +33,12 @@ def get_stock_data():
             parts = line.split(',')
             for p in parts:
                 symbol = p.strip()
+                # 基本的なティッカー形式を確認
                 if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
                     ticker_list.append(symbol)
 
-    ticker_list = list(dict.fromkeys(ticker_list))[:400]
+    # 重複排除
+    ticker_list = list(dict.fromkeys(ticker_list))
     results = []
     print(f"{len(ticker_list)} 銘柄の取得を開始します...")
 
@@ -45,27 +47,34 @@ def get_stock_data():
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
+
+            # --- ガード節: infoが取得できない、または主要データが欠落している場合はスキップ ---
+            if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
+                print(f"Skipping {symbol}: No valid data from Yahoo Finance")
+                continue
+
+            # 財務データの取得（取得できない場合は None または空のDataFrameが返る）
             financials = stock.financials
             
-            # 売上履歴
+            # 売上履歴の抽出
             rev_history = []
-            if 'Total Revenue' in financials.index:
+            if financials is not None and not financials.empty and 'Total Revenue' in financials.index:
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 rev_history = sorted_fin.loc['Total Revenue'].tolist()
 
-            # 純利益
+            # 純利益の抽出
             net_income = info.get("netIncome")
-            if not net_income and 'Net Income' in financials.index:
+            if not net_income and financials is not None and not financials.empty and 'Net Income' in financials.index:
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 net_income = sorted_fin.loc['Net Income'].iloc[0]
 
-            # 利益率
+            # 利益率の計算
             revenue = info.get("totalRevenue")
             margin = "-"
             if net_income and revenue and revenue > 0:
                 margin = f"{(net_income / revenue):.2%}"
 
-            # 配当率 ( yfinanceの仕様に合わせ適正化 )
+            # 配当率の計算
             dy_raw = info.get('dividendYield')
             dividend_yield = "0.00%"
             if dy_raw is not None:
@@ -74,7 +83,8 @@ def get_stock_data():
             # フェアバリュー計算 (グレアム数)
             eps = info.get("forwardEps")
             bps = info.get("bookValue")
-            price = info.get("currentPrice")
+            price = info.get("currentPrice") or info.get("regularMarketPrice")
+            
             fv = (22.5 * eps * bps) ** 0.5 if (eps and bps and eps > 0 and bps > 0) else None
             
             status = "-"
@@ -85,7 +95,7 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
-            # 既存の手動入力データを取得（なければハイフン）
+            # 既存の手動入力データを取得
             m_info = manual_data.get(symbol, {"⑮自作シグナル": "-", "⑯保有": "-"})
 
             results.append({
@@ -106,20 +116,27 @@ def get_stock_data():
                 "⑫時価総額": info.get("marketCap"),
                 "⑬フェアバリュー": round(fv, 2) if fv else "-",
                 "⑭判定": status,
-                "⑮自作シグナル": m_info["⑮自作シグナル"], # ここで保護した値を戻す
-                "⑯保有": m_info["⑯保有"],             # ここで保護した値を戻す
+                "⑮自作シグナル": m_info["⑮自作シグナル"],
+                "⑯保有": m_info["⑯保有"],
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             print(f"Success: {symbol}")
-            time.sleep(1.2) # API制限回避
+            
+            # API負荷軽減とBAN回避のため待機時間を設定
+            time.sleep(1.2)
+
         except Exception as e:
-            print(f"Error {symbol}: {e}")
+            print(f"Error skipping {symbol}: {e}")
+            continue
 
     # 4. CSV保存
-    df = pd.DataFrame(results)
-    os.makedirs('data', exist_ok=True)
-    df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-    print(f"CSV更新完了: {len(df)} 銘柄。手動入力列は維持されました。")
+    if results:
+        df = pd.DataFrame(results)
+        os.makedirs('data', exist_ok=True)
+        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        print(f"CSV更新完了: {len(df)} 銘柄。手動入力列は維持されました。")
+    else:
+        print("警告: 取得できたデータがありませんでした。CSVは更新されません。")
 
 if __name__ == "__main__":
     get_stock_data()
