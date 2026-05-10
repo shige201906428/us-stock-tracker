@@ -8,17 +8,21 @@ on:
     - cron: '30 14 * * *'
   workflow_dispatch:
 
+# 書き込み権限を明示的に許可（exit code 128 対策）
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # v3からv4にアップグレード
         with:
           persist-credentials: true
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # v4からv5にアップグレード
         with:
           python-version: '3.9'
           
@@ -28,7 +32,6 @@ jobs:
           pip install yfinance pandas
           
       - name: Run Scraper
-        # パターンB: srcフォルダ内のscraper.pyを実行
         run: python src/scraper.py
         
       - name: Commit and Push
