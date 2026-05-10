@@ -6,7 +6,7 @@ import os
 import re
 
 def get_stock_data():
-    # 1. 既存のCSVからシグナル・保有状況を読み込んで保護
+    # 1. 既存のCSVからデータを読み込んで保護（パスに注意）
     manual_data = {}
     csv_path = 'data/stock_data.csv'
     
@@ -19,17 +19,18 @@ def get_stock_data():
                     "⑮自作シグナル": row.get('⑮自作シグナル', '-'),
                     "⑯保有": row.get('⑯保有', '-')
                 }
-            print(f"Existing data protected for {len(manual_data)} tickers.")
+            print(f"既存のCSVから {len(manual_data)} 件のシグナル情報を保護しました。")
         except Exception as e:
-            print(f"Note: Could not read existing CSV (normal for first run): {e}")
+            print(f"既存データ読み込みスキップ: {e}")
 
-    # 2. 銘柄リストの読み込み
+    # 2. 銘柄リストの読み込み（tickers.txt はルートにある前提）
     ticker_list = []
-    if not os.path.exists('tickers.txt'):
-        print("Error: tickers.txt not found.")
+    tickers_path = 'tickers.txt'
+    if not os.path.exists(tickers_path):
+        print(f"Error: {tickers_path} が見つかりません。")
         return
 
-    with open('tickers.txt', 'r', encoding='utf-8') as f:
+    with open(tickers_path, 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.split(',')
             for p in parts:
@@ -39,7 +40,7 @@ def get_stock_data():
 
     ticker_list = list(dict.fromkeys(ticker_list)) 
     results = []
-    print(f"Starting update for {len(ticker_list)} tickers...")
+    print(f"{len(ticker_list)} 銘柄の取得を開始...")
 
     # 3. Yahoo Financeからデータ取得
     for symbol in ticker_list:
@@ -48,21 +49,20 @@ def get_stock_data():
             info = stock.info
 
             if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                print(f"Skipping {symbol}: No data")
+                print(f"Skipping {symbol}: データなし")
                 continue
 
-            # 売上履歴
+            # 財務データ取得
             financials = stock.financials
             rev_history = []
             if financials is not None and not financials.empty and 'Total Revenue' in financials.index:
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 rev_history = sorted_fin.loc['Total Revenue'].tolist()
 
-            # 利益率と配当率
+            # 指標計算
             net_income = info.get("netIncome")
             revenue = info.get("totalRevenue")
             margin = f"{(net_income / revenue):.2%}" if net_income and revenue and revenue > 0 else "-"
-            
             dy_raw = info.get('dividendYield')
             dividend_yield = f"{(float(dy_raw)):.2%}" if dy_raw is not None else "0.00%"
 
@@ -80,7 +80,7 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
-            # 既存データの引き継ぎ
+            # 既存情報の引き継ぎ
             m_info = manual_data.get(symbol, {"⑮自作シグナル": "-", "⑯保有": "-"})
 
             results.append({
@@ -101,8 +101,8 @@ def get_stock_data():
                 "⑫時価総額": info.get("marketCap"),
                 "⑬フェアバリュー": round(fv, 2) if fv else "-",
                 "⑭判定": status,
-                "⑮自作シグナル": m_info["⑮自作シグナル"] if not pd.isna(m_info["⑮自作シグナル"]) else "-",
-                "⑯保有": m_info["⑯保有"] if not pd.isna(m_info["⑯保有"]) else "-",
+                "⑮自作シグナル": m_info["⑮自作シグナル"],
+                "⑯保有": m_info["⑯保有"],
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             print(f"Success: {symbol}")
@@ -116,7 +116,7 @@ def get_stock_data():
         df = pd.DataFrame(results)
         os.makedirs('data', exist_ok=True)
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        print(f"CSV Updated: {len(df)} tickers.")
+        print(f"CSV保存完了: {csv_path}")
 
 if __name__ == "__main__":
     get_stock_data()
