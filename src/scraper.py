@@ -9,7 +9,7 @@ def get_stock_data():
     manual_data = {}
     csv_path = 'data/stock_data.csv'
     
-    # 1. 既存データの読み込み（シグナル・保有の保護）
+    # 既存データの読み込み（シグナル・保有の保護）
     if os.path.exists(csv_path):
         try:
             df_old = pd.read_csv(csv_path, dtype=str)
@@ -20,19 +20,16 @@ def get_stock_data():
                     "⑯保有": row.get('⑯保有', '-')
                 }
         except Exception as e:
-            print(f"既存データの読み込みエラー: {e}")
+            print(f"Read error: {e}")
 
-    # 2. 銘柄リスト読み込み
+    # 銘柄リスト読み込み
     ticker_list = []
-    if not os.path.exists('tickers.txt'):
-        print("tickers.txt が見つかりません。")
-        return
+    if not os.path.exists('tickers.txt'): return
     with open('tickers.txt', 'r', encoding='utf-8') as f:
         for line in f:
             for p in line.split(','):
                 symbol = p.strip().upper()
-                if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
-                    ticker_list.append(symbol)
+                if re.fullmatch(r'[A-Z0-9\.-]+', symbol): ticker_list.append(symbol)
 
     ticker_list = list(dict.fromkeys(ticker_list))
     results = []
@@ -41,41 +38,35 @@ def get_stock_data():
     jst = timezone(timedelta(hours=+9), 'JST')
     current_time = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
 
-    print(f"{len(ticker_list)} 銘柄の取得を開始します...")
-
     for symbol in ticker_list:
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
-            if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info):
-                continue
+            if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info): continue
 
             # --- 利益率の計算修正 ---
             net_income = info.get("netIncome")
             revenue = info.get("totalRevenue")
             financials = stock.financials
-            
-            # infoが空なら財務諸表(financials)から最新値を取得
             if (not net_income or not revenue) and financials is not None and not financials.empty:
                 if 'Net Income' in financials.index: net_income = financials.loc['Net Income'].iloc[0]
                 if 'Total Revenue' in financials.index: revenue = financials.loc['Total Revenue'].iloc[0]
 
             margin = "-"
             if net_income and revenue and float(revenue) > 0:
-                # float同士で計算してパーセント形式に
                 margin = f"{(float(net_income) / float(revenue)):.2%}"
 
-            # --- 配当率の計算修正 (0.05 -> 5.00%) ---
+            # --- 配当率の計算修正 (提案通り100で割る) ---
             dy_raw = info.get('dividendYield')
             dividend_yield = "0.00%"
             if dy_raw is not None and dy_raw != "":
-                # yfinanceは 0.05 (=5%) で返してくるため、そのままパーセント表示にする
-                dividend_yield = f"{float(dy_raw):.2%}"
+                # 取得した値を100で割ってからパーセント形式にする
+                dividend_yield = f"{(float(dy_raw) / 100):.2%}"
 
-            # 売上履歴（HTML用）
+            # 売上履歴
             rev_history = financials.loc['Total Revenue'].tolist() if (financials is not None and not financials.empty and 'Total Revenue' in financials.index) else []
 
-            # フェアバリュー判定 (グレアム数)
+            # フェアバリュー判定
             eps = info.get("forwardEps")
             bps = info.get("bookValue")
             price = info.get("currentPrice") or info.get("regularMarketPrice")
@@ -89,7 +80,6 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
-            # 既存の手動入力データをマージ
             m_info = manual_data.get(symbol, {"⑮自作シグナル": "-", "⑯保有": "-"})
 
             results.append({
@@ -115,16 +105,14 @@ def get_stock_data():
                 "更新日時": current_time
             })
             print(f"Success: {symbol}")
-            time.sleep(1.2) # API負荷軽減
+            time.sleep(1.2)
         except Exception as e:
             print(f"Error {symbol}: {e}")
 
-    # 4. CSV保存（BOM付きUTF-8）
     if results:
         df = pd.DataFrame(results)
         os.makedirs('data', exist_ok=True)
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        print(f"CSVを更新しました: {csv_path}")
 
 if __name__ == "__main__":
     get_stock_data()
