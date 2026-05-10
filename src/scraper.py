@@ -9,7 +9,7 @@ def get_stock_data():
     manual_data = {}
     csv_path = 'data/stock_data.csv'
     
-    # 1. 既存のCSVを読み込み（シグナルと保有を退避）
+    # 既存データの読み込み（シグナル・保有の保護）
     if os.path.exists(csv_path):
         try:
             df_old = pd.read_csv(csv_path, dtype=str)
@@ -20,43 +20,37 @@ def get_stock_data():
                     "⑯保有": row.get('⑯保有', '-')
                 }
         except Exception as e:
-            print(f"既存データの読み込みエラー: {e}")
+            print(f"Read error: {e}")
 
-    # 2. 銘柄リスト読み込み
+    # 銘柄リスト読み込み
     ticker_list = []
-    if not os.path.exists('tickers.txt'):
-        print("tickers.txt がありません。")
-        return
-
+    if not os.path.exists('tickers.txt'): return
     with open('tickers.txt', 'r', encoding='utf-8') as f:
         for line in f:
             for p in line.split(','):
                 symbol = p.strip().upper()
-                if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
-                    ticker_list.append(symbol)
+                if re.fullmatch(r'[A-Z0-9\.-]+', symbol): ticker_list.append(symbol)
 
     ticker_list = list(dict.fromkeys(ticker_list))
     results = []
 
-    # 3. データ取得
     for symbol in ticker_list:
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
-            if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info):
-                continue
+            if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info): continue
 
             financials = stock.financials
             rev_history = financials.loc['Total Revenue'].tolist() if (financials is not None and not financials.empty and 'Total Revenue' in financials.index) else []
 
-            # 指標計算
+            # 基本指標
             net_income = info.get("netIncome")
             revenue = info.get("totalRevenue")
             margin = f"{(net_income / revenue):.2%}" if net_income and revenue and revenue > 0 else "-"
             dy_raw = info.get('dividendYield')
             dividend_yield = f"{(float(dy_raw)):.2%}" if dy_raw is not None else "0.00%"
 
-            # フェアバリュー判定
+            # フェアバリュー計算
             eps = info.get("forwardEps")
             bps = info.get("bookValue")
             price = info.get("currentPrice") or info.get("regularMarketPrice")
@@ -99,12 +93,10 @@ def get_stock_data():
         except Exception as e:
             print(f"Error {symbol}: {e}")
 
-    # 4. 保存
     if results:
         df = pd.DataFrame(results)
         os.makedirs('data', exist_ok=True)
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        print("Done.")
 
 if __name__ == "__main__":
     get_stock_data()
