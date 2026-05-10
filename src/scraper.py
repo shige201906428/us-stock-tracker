@@ -6,10 +6,10 @@ import os
 import re
 
 def get_stock_data():
-    # 1. 既存のCSVからデータを読み込んで保護（パスに注意）
     manual_data = {}
     csv_path = 'data/stock_data.csv'
     
+    # 1. 既存のCSVを読み込み（シグナルと保有を退避）
     if os.path.exists(csv_path):
         try:
             df_old = pd.read_csv(csv_path, dtype=str)
@@ -19,45 +19,35 @@ def get_stock_data():
                     "⑮自作シグナル": row.get('⑮自作シグナル', '-'),
                     "⑯保有": row.get('⑯保有', '-')
                 }
-            print(f"既存のCSVから {len(manual_data)} 件のシグナル情報を保護しました。")
         except Exception as e:
-            print(f"既存データ読み込みスキップ: {e}")
+            print(f"既存データの読み込みエラー: {e}")
 
-    # 2. 銘柄リストの読み込み（tickers.txt はルートにある前提）
+    # 2. 銘柄リスト読み込み
     ticker_list = []
-    tickers_path = 'tickers.txt'
-    if not os.path.exists(tickers_path):
-        print(f"Error: {tickers_path} が見つかりません。")
+    if not os.path.exists('tickers.txt'):
+        print("tickers.txt がありません。")
         return
 
-    with open(tickers_path, 'r', encoding='utf-8') as f:
+    with open('tickers.txt', 'r', encoding='utf-8') as f:
         for line in f:
-            parts = line.split(',')
-            for p in parts:
+            for p in line.split(','):
                 symbol = p.strip().upper()
                 if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
                     ticker_list.append(symbol)
 
-    ticker_list = list(dict.fromkeys(ticker_list)) 
+    ticker_list = list(dict.fromkeys(ticker_list))
     results = []
-    print(f"{len(ticker_list)} 銘柄の取得を開始...")
 
-    # 3. Yahoo Financeからデータ取得
+    # 3. データ取得
     for symbol in ticker_list:
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
-
-            if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-                print(f"Skipping {symbol}: データなし")
+            if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info):
                 continue
 
-            # 財務データ取得
             financials = stock.financials
-            rev_history = []
-            if financials is not None and not financials.empty and 'Total Revenue' in financials.index:
-                sorted_fin = financials.sort_index(axis=1, ascending=False)
-                rev_history = sorted_fin.loc['Total Revenue'].tolist()
+            rev_history = financials.loc['Total Revenue'].tolist() if (financials is not None and not financials.empty and 'Total Revenue' in financials.index) else []
 
             # 指標計算
             net_income = info.get("netIncome")
@@ -80,7 +70,6 @@ def get_stock_data():
                 elif ratio < 1.3: status = "適正"
                 else: status = "割高"
 
-            # 既存情報の引き継ぎ
             m_info = manual_data.get(symbol, {"⑮自作シグナル": "-", "⑯保有": "-"})
 
             results.append({
@@ -107,16 +96,15 @@ def get_stock_data():
             })
             print(f"Success: {symbol}")
             time.sleep(1.2)
-
         except Exception as e:
-            print(f"Error skipping {symbol}: {e}")
+            print(f"Error {symbol}: {e}")
 
-    # 4. CSV保存
+    # 4. 保存
     if results:
         df = pd.DataFrame(results)
         os.makedirs('data', exist_ok=True)
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        print(f"CSV保存完了: {csv_path}")
+        print("Done.")
 
 if __name__ == "__main__":
     get_stock_data()
