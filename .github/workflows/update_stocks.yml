@@ -6,9 +6,12 @@ on:
     - cron: '30 14 * * *' # 23:30 JST
   workflow_dispatch:
 
-# 権限を最強レベルで設定
 permissions:
   contents: write
+
+env:
+  # Node.js 24を強制使用して警告を完全に消す
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -23,7 +26,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          # ★エラーの原因だった cache: 'pip' を削除しました
           
       - name: Install dependencies
         run: |
@@ -31,7 +33,6 @@ jobs:
           pip install yfinance pandas
           
       - name: Run Scraper
-        # src/scraper.py が存在することを前提としています
         run: python src/scraper.py
         
       - name: Commit and Push
@@ -39,14 +40,15 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 競合を避けるために最新を強制取得
-          git pull origin main --rebase
+          # 認証エラーを物理的に防ぐためのURL再設定
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           
+          git pull origin main --rebase
           git add data/stock_data.csv
           
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
             git push origin main
           else
-            echo "変更がないため終了します"
+            echo "変更がないためスキップします"
           fi
