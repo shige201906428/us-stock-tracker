@@ -1,15 +1,15 @@
 import yfinance as yf
 import pandas as pd
-import datetime
 import time
 import os
 import re
+from datetime import datetime, timedelta, timezone
 
 def get_stock_data():
     manual_data = {}
     csv_path = 'data/stock_data.csv'
     
-    # 既存データの読み込み（シグナル・保有の保護）
+    # 1. 既存データの読み込み（シグナル・保有の保護）
     if os.path.exists(csv_path):
         try:
             df_old = pd.read_csv(csv_path, dtype=str)
@@ -22,7 +22,7 @@ def get_stock_data():
         except Exception as e:
             print(f"Read error: {e}")
 
-    # 銘柄リスト読み込み
+    # 2. 銘柄リスト読み込み
     ticker_list = []
     if not os.path.exists('tickers.txt'): return
     with open('tickers.txt', 'r', encoding='utf-8') as f:
@@ -34,21 +34,42 @@ def get_stock_data():
     ticker_list = list(dict.fromkeys(ticker_list))
     results = []
 
+    # 日本時間の設定
+    jst = timezone(timedelta(hours=+9), 'JST')
+    current_time = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
+
     for symbol in ticker_list:
         try:
             stock = yf.Ticker(symbol)
             info = stock.info
             if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info): continue
 
-            financials = stock.financials
-            rev_history = financials.loc['Total Revenue'].tolist() if (financials is not None and not financials.empty and 'Total Revenue' in financials.index) else []
-
-            # 基本指標
+            # --- 利益率の計算修正 ---
+            # infoから取れない場合は、financialsから最新値を取得する
             net_income = info.get("netIncome")
             revenue = info.get("totalRevenue")
-            margin = f"{(net_income / revenue):.2%}" if net_income and revenue and revenue > 0 else "-"
+            
+            financials = stock.financials
+            if (not net_income or not revenue) and financials is not None and not financials.empty:
+                if 'Net Income' in financials.index:
+                    net_income = financials.loc['Net Income'].iloc[0]
+                if 'Total Revenue' in financials.index:
+                    revenue = financials.loc['Total Revenue'].iloc[0]
+
+            margin = "-"
+            if net_income and revenue and revenue > 0:
+                # 0.1532 -> 15.32% の形式に
+                margin = f"{(float(net_income) / float(revenue)):.2%}"
+
+            # --- 配当率の計算修正 ---
+            # dy_rawが 0.05 なら 5.00% と表示させる
             dy_raw = info.get('dividendYield')
-            dividend_yield = f"{(float(dy_raw)):.2%}" if dy_raw is not None else "0.00%"
+            dividend_yield = "0.00%"
+            if dy_raw is not None and dy_raw != "":
+                dividend_yield = f"{float(dy_raw):.2%}"
+
+            # 売上履歴（HTML表示用）
+            rev_history = financials.loc['Total Revenue'].tolist() if (financials is not None and not financials.empty and 'Total Revenue' in financials.index) else []
 
             # フェアバリュー計算
             eps = info.get("forwardEps")
@@ -86,7 +107,7 @@ def get_stock_data():
                 "⑭判定": status,
                 "⑮自作シグナル": m_info["⑮自作シグナル"],
                 "⑯保有": m_info["⑯保有"],
-                "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "更新日時": current_time
             })
             print(f"Success: {symbol}")
             time.sleep(1.2)
