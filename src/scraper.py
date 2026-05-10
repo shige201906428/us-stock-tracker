@@ -19,6 +19,7 @@ def get_stock_data():
                 if re.fullmatch(r'[A-Z0-9\.-]+', symbol):
                     ticker_list.append(symbol)
 
+    # 400銘柄に対応
     ticker_list = list(dict.fromkeys(ticker_list))[:400]
     results = []
     print(f"{len(ticker_list)}銘柄の取得を開始...")
@@ -41,17 +42,16 @@ def get_stock_data():
                 sorted_fin = financials.sort_index(axis=1, ascending=False)
                 net_income = sorted_fin.loc['Net Income'].iloc[0]
 
-            # --- 利益率の直接計算 ---
+            # 利益率の計算
             revenue = info.get("totalRevenue")
             margin = "-"
             if net_income and revenue and revenue > 0:
                 margin = f"{(net_income / revenue):.2%}"
 
-            # --- 配当率の適正化（数値を100分の1にする） ---
+            # 配当率の適正化（100分の1にする）
             dy_raw = info.get('dividendYield')
             dividend_yield = "0.00%"
             if dy_raw is not None:
-                # 取得した数値(dy_raw)を100で割ってから%表記にする
                 dividend_yield = f"{(float(dy_raw) / 100):.2%}"
 
             # フェアバリュー計算
@@ -86,6 +86,7 @@ def get_stock_data():
                 "⑫時価総額": info.get("marketCap"),
                 "⑬フェアバリュー": round(fv, 2) if fv else "-",
                 "⑭判定": status,
+                "⑮自作シグナル": "-",  # ← ここを追加しました（初期値はハイフン）
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             time.sleep(1.0)
