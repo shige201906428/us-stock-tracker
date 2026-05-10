@@ -87,6 +87,7 @@ def get_stock_data():
                 "⑬フェアバリュー": round(fv, 2) if fv else "-",
                 "⑭判定": status,
                 "⑮自作シグナル": "-",  # ← ここを追加しました（初期値はハイフン）
+                "⑯保有": "-",  # ← ここを新しく追加
                 "更新日時": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
             time.sleep(1.0)
