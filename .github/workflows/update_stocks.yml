@@ -6,14 +6,9 @@ on:
     - cron: '30 14 * * *' # 23:30 JST
   workflow_dispatch:
 
-# 権限をトップレベルで明示的に定義
+# 権限を最強レベルで設定
 permissions:
   contents: write
-  pull-requests: write
-
-env:
-  # 警告を消し、最新エンジンを使用
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -22,15 +17,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # 認証情報をトークン経由で確実に保持
-          token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          cache: 'pip' # 実行速度を上げるためのキャッシュ
+          # ★エラーの原因だった cache: 'pip' を削除しました
           
       - name: Install dependencies
         run: |
@@ -38,6 +31,7 @@ jobs:
           pip install yfinance pandas
           
       - name: Run Scraper
+        # src/scraper.py が存在することを前提としています
         run: python src/scraper.py
         
       - name: Commit and Push
@@ -45,19 +39,14 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # コンフリクトを強制回避して最新を取り込む
-          git fetch origin main
-          git reset --hard origin/main
-          
-          # 再度Pythonを実行して最新の状態にする（念のため）
-          python src/scraper.py
+          # 競合を避けるために最新を強制取得
+          git pull origin main --rebase
           
           git add data/stock_data.csv
           
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
-            # 強制的にプッシュするのではなく、安全に同期
             git push origin main
           else
-            echo "変更がありません"
+            echo "変更がないため終了します"
           fi
