@@ -2,17 +2,22 @@ name: US Stock Data Update
 
 on:
   schedule:
-    # 1回目：日本時間 朝 07:00 (UTC 22:00) -> 昨晩の確定データでじっくり分析
-    # 2回目：日本時間 夜 23:30 (UTC 14:30) -> 今夜の開始直後の勢いを確認
-    - cron: '0 14,22 * * *'
+    # 1回目：日本時間 07:00 (UTC 22:00) -> 昨晩の確定データで分析
+    # 2回目：日本時間 23:30 (UTC 14:30) -> 今夜の開始直後の勢いを確認
+    - cron: '0 22 * * *'    # 07:00 JST
+    - cron: '30 14 * * *'   # 23:30 JST
   workflow_dispatch: # ボタンから手動実行も可能
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          # 履歴を保持して、古いCSVとの競合を防ぐ
+          persist-credentials: true
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -20,15 +25,27 @@ jobs:
           
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install yfinance pandas
           
       - name: Run Scraper
+        # ファイルパスが 'src/scraper.py' であることを確認してください
         run: python src/scraper.py
         
       - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 最新の変更を取り込んで競合を回避
+          git pull origin main --rebase
+          
           git add data/stock_data.csv
-          git commit -m "定期更新: $(date)"
-          git push
+          
+          # 変更がある場合のみコミット（変更がない場合にエラーになるのを防ぐ）
+          if ! git diff --cached --exit-code --quiet; then
+            git commit -m "定期更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi
