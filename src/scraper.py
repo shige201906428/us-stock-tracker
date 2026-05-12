@@ -9,7 +9,6 @@ def get_stock_data():
     csv_path = 'data/stock_data.csv'
     manual_data = {}
     
-    # 既存データの読み込み（手入力項目の保護）
     if os.path.exists(csv_path):
         try:
             df_old = pd.read_csv(csv_path, dtype=str)
@@ -22,7 +21,6 @@ def get_stock_data():
         except Exception as e:
             print(f"Read error: {e}")
 
-    # 銘柄リスト読み込み
     if not os.path.exists('tickers.txt'):
         print("tickers.txt が見つかりません。")
         return
@@ -43,31 +41,50 @@ def get_stock_data():
             if not info or ('currentPrice' not in info and 'regularMarketPrice' not in info):
                 continue
 
-            # 財務データの取得
+            # --- 財務データの取得強化 (利益率・売上成長率のため) ---
             financials = stock.financials
+            revenue = info.get("totalRevenue")
+            net_income = info.get("netIncome")
             rev_history = []
-            if financials is not None and not financials.empty and 'Total Revenue' in financials.index:
-                rev_history = financials.loc['Total Revenue'].fillna(0).tolist()
 
-            # 売上成長率の計算 (取得できた最大分)
+            if financials is not None and not financials.empty:
+                # 売上高の補填
+                if 'Total Revenue' in financials.index:
+                    rev_history = financials.loc['Total Revenue'].fillna(0).tolist()
+                    if not revenue or revenue == 0:
+                        revenue = rev_history[0]
+                
+                # 純利益の補填 (これがスクリーンショットの「-」を解決します)
+                if 'Net Income' in financials.index:
+                    ni_history = financials.loc['Net Income'].fillna(0).tolist()
+                    if not net_income or net_income == 0:
+                        net_income = ni_history[0]
+
+            # --- 利益率の計算 ---
+            margin = "-"
+            if revenue and net_income and float(revenue) > 0:
+                margin = f"{(float(net_income) / float(revenue)):.2%}"
+
+            # --- 売上成長率の計算 ---
             growth_rates = []
             for i in range(len(rev_history) - 1):
                 curr, prev = rev_history[i], rev_history[i+1]
                 growth_rates.append(f"{(curr - prev) / prev:.2%}" if prev > 0 else "-")
 
-            # 各種指標
-            revenue = info.get("totalRevenue") or (rev_history[0] if rev_history else 0)
-            net_income = info.get("netIncome")
-            margin = f"{(net_income / revenue):.2%}" if net_income and revenue and revenue > 0 else "-"
-            
+            # --- 配当率の計算 (100で割る修正) ---
             dy_raw = info.get('dividendYield')
-            dividend_yield = f"{(float(dy_raw) / 100):.2%}" if dy_raw not in [None, ""] else "0.00%"
+            if dy_raw not in [None, ""]:
+                # yfinanceから届く値をパーセント表記に正しく変換
+                dividend_yield = f"{(float(dy_raw) / 100):.2%}"
+            else:
+                dividend_yield = "0.00%"
 
+            # --- 自己資本比率 ---
             total_assets = info.get('totalAssets')
             total_equity = info.get('totalStockholderEquity')
             equity_ratio = f"{(total_equity / total_assets):.2%}" if total_assets and total_equity else "N/A"
 
-            # フェアバリュー
+            # --- フェアバリュー ---
             eps, bps = info.get("forwardEps"), info.get("bookValue")
             price = info.get("currentPrice") or info.get("regularMarketPrice")
             fv = (22.5 * eps * bps) ** 0.5 if (eps and bps and eps > 0 and bps > 0) else None
@@ -87,11 +104,11 @@ def get_stock_data():
                 "Ticker": symbol,
                 "②自己資本比率": equity_ratio,
                 "⑤業界/セクター": f"{info.get('sector', '')} / {info.get('industry', '')}",
-                "⑧当期売上高": revenue,
+                "⑧当期売上高": revenue if revenue != 0 else "-",
                 "成長率(最新)": growth_rates[0] if len(growth_rates) > 0 else "-",
                 "成長率(1期前)": growth_rates[1] if len(growth_rates) > 1 else "-",
                 "成長率(2期前)": growth_rates[2] if len(growth_rates) > 2 else "-",
-                "⑨当期純利益": net_income,
+                "⑨当期純利益": net_income if net_income != 0 else "-",
                 "利益率": margin,
                 "配当率": dividend_yield,
                 "⑬フェアバリュー": round(fv, 2) if fv else "-",
@@ -101,7 +118,7 @@ def get_stock_data():
                 "更新日時": current_time
             })
             print(f"Success: {symbol}")
-            time.sleep(1.0)
+            time.sleep(1.2)
         except Exception as e:
             print(f"Error {symbol}: {e}")
 
@@ -109,6 +126,7 @@ def get_stock_data():
         df = pd.DataFrame(results)
         os.makedirs('data', exist_ok=True)
         df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        print("CSV saved successfully.")
 
 if __name__ == "__main__":
     get_stock_data()
