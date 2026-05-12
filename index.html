@@ -2,42 +2,33 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>US Stock Screener - TradingView Integration</title>
+    <title>US Stock Screener - Advanced Sort</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root { --bg: #f5f7fa; --primary: #3498db; --text: #2c3e50; --border: #e1e8ed; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
-        header { background: #2c3e50; color: white; padding: 0.8rem; text-align: center; border-radius: 6px; margin-bottom: 15px; }
-        header h1 { font-size: 1.5rem; margin: 0; }
-        .controls { background: white; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input { flex-grow: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; }
-        .table-wrapper { background: white; border-radius: 6px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        table { width: 100%; border-collapse: collapse; min-width: 1600px; }
-        th { background: #f8f9fa; padding: 10px 8px; cursor: pointer; border-bottom: 2px solid var(--border); font-size: 11px; color: #7f8c8d; position: sticky; top: 0; z-index: 10; white-space: nowrap; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
+        .controls { background: white; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input { flex-grow: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+        .table-wrapper { background: white; border-radius: 6px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 1400px; }
+        th { background: #f8f9fa; padding: 12px 8px; cursor: pointer; border-bottom: 2px solid var(--border); font-size: 11px; white-space: nowrap; }
         th:hover { background: #edf2f7; }
-        td { padding: 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; white-space: nowrap; }
-        td:nth-child(2), td:nth-child(6) { text-align: left; }
+        td { padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; }
+        .t-left { text-align: left; }
         .ticker-link { color: var(--primary); text-decoration: none; font-weight: bold; }
-        .ticker-link:hover { text-decoration: underline; }
-        .badge { background: #eee; padding: 2px 6px; border-radius: 8px; font-size: 10px; }
-        tr:hover { background: #f1f9ff !important; }
-        #statCount { font-size: 12px; white-space: nowrap; }
-        #loader { text-align: center; padding: 50px; font-weight: bold; color: var(--primary); }
+        .pos { color: #27ae60; font-weight: bold; }
+        .neg { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<header><h1>US Stock Financial Screener</h1></header>
-
 <div class="controls">
-    <input type="text" id="filterInput" placeholder="Ticker, 業種, 判定などで検索..." onkeyup="filterData()">
-    <div id="statCount" style="font-weight:bold">読み込み中...</div>
+    <input type="text" id="filterInput" placeholder="Tickerやセクターで検索..." onkeyup="filterData()">
+    <div id="statCount" style="align-self:center; font-weight:bold;">Loading...</div>
 </div>
 
 <div class="table-wrapper">
-    <div id="loader">データを読み込み中...</div>
-    <table id="stockTable" style="display:none;">
+    <table id="stockTable">
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -48,139 +39,78 @@
     let asc = true;
     let currentSortCol = "";
 
-    // 金額を「M$ (百万ドル)」単位に変換する関数
     function formatM(val, h) {
-        // 金額として扱う列名の定義（Python側と一致させる）
-        const moneyColumns = ["⑧当期売上高", "⑧-1 前年売上高", "⑧-2 前々年売上高", "⑨当期純利益", "⑫時価総額", "③営業CF"];
-        
-        if (moneyColumns.includes(h)) {
+        const moneyCols = ["⑧当期売上高", "⑨当期純利益", "⑫時価総額", "③営業CF"];
+        if (moneyCols.includes(h)) {
             let n = parseFloat(val);
-            if (isNaN(n) || val === "-" || val === "" || val === "0") return val;
-            // 1,000,000で割って百万ドル単位にする
+            if (isNaN(n) || n === 0) return val;
             return (n / 1000000).toLocaleString(undefined, {minimumFractionDigits: 2}) + " M$";
         }
         return val;
     }
 
     async function init() {
-        try {
-            // キャッシュ回避のためクエリパラメータ付与
-            const res = await fetch('data/stock_data.csv?v=' + new Date().getTime());
-            const text = await res.text();
-            Papa.parse(text, { 
-                header: true, 
-                skipEmptyLines: true, 
-                complete: r => {
-                    allData = r.data;
-                    document.getElementById('loader').style.display = 'none';
-                    document.getElementById('stockTable').style.display = 'table';
-                    render(allData);
-                }
-            });
-        } catch (error) {
-            document.getElementById('loader').innerText = "エラー: stock_data.csvが見つかりません。Pythonを実行してください。";
-        }
+        const res = await fetch('data/stock_data.csv?v=' + Date.now());
+        const text = await res.text();
+        Papa.parse(text, {
+            header: true,
+            skipEmptyLines: true,
+            complete: r => {
+                allData = r.data;
+                render(allData);
+            }
+        });
     }
 
     function render(data) {
-        if (data.length === 0) {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="100" style="text-align:center;">該当なし</td></tr>';
-            return;
-        }
-
         const headers = Object.keys(data[0]);
-        // ヘッダー生成
-        document.getElementById('tableHead').innerHTML = `<tr>${headers.map(h => {
-            const arrow = (h === currentSortCol) ? (asc ? " ▲" : " ▼") : "";
-            return `<th onclick="sortT('${h}')">${h}${arrow}</th>`;
-        }).join('')}</tr>`;
+        document.getElementById('tableHead').innerHTML = `<tr>${headers.map(h => `<th onclick="sortT('${h}')">${h}${currentSortCol===h?(asc?' ▲':' ▼'):''}</th>`).join('')}</tr>`;
         
-        // データ行生成
         document.getElementById('tableBody').innerHTML = data.map(row => {
             return `<tr>${headers.map(h => {
                 let v = row[h] || '-';
+                let style = "";
+                let cls = "";
 
-                // Ticker列: TradingViewへのリンク
-                if(h === "Ticker") {
-                    return `<td><a class="ticker-link" href="https://www.tradingview.com/symbols/${v}/" target="_blank">${v}</a></td>`;
-                }
+                if(h === "Ticker") return `<td class="t-left"><a class="ticker-link" href="https://www.tradingview.com/symbols/${v}/" target="_blank">${v}</a></td>`;
                 
-                // ⑭判定列: 条件付き書式
-                if (h === "⑭判定") {
-                    let bgColor = "transparent", textColor = "inherit", fontWeight = "normal";
-                    if (v === "超割安") { bgColor = "#ffcccc"; textColor = "#cc0000"; fontWeight = "bold"; }
-                    else if (v === "割安") { bgColor = "#fff3cd"; textColor = "#856404"; fontWeight = "bold"; }
-                    else if (v === "適正") { bgColor = "#d4edda"; textColor = "#155724"; }
-                    else if (v === "割高") { textColor = "#721c24"; }
-                    return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${v}</td>`;
-                }
-
-                // ⑮自作シグナル列: BUY/SELL ハイライト
-                if (h === "⑮自作シグナル") {
-                    let bgColor = "transparent", textColor = "white", fontWeight = "bold";
-                    let s = String(v).toUpperCase();
-                    if (s === "BUY") { bgColor = "#2196F3"; }
-                    else if (s === "SELL") { bgColor = "#F44336"; }
-                    else { textColor = "inherit"; fontWeight = "normal"; }
-                    return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${v}</td>`;
-                }
-                
-                // ⑯保有列: チェックマーク表示
-                if (h === "⑯保有") {
-                    let bgColor = "transparent", textColor = "#1976d2", fontWeight = "normal", displayText = v;
-                    if (v === "保有中" || v === "YES" || v === "1") {
-                        bgColor = "#e3f2fd"; fontWeight = "bold"; displayText = "✅ 保有中";
-                    }
-                    return `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: ${fontWeight}; text-align: center;">${displayText}</td>`;
-                }
-
-                // 成長率・配当率などの「%」を含む列の着色（オプション）
-                if (h.includes("成長率") || h === "利益率") {
+                if(h.includes("成長率") || h === "利益率") {
                     let n = parseFloat(v);
-                    let color = n > 0 ? "#27ae60" : (n < 0 ? "#e74c3c" : "inherit");
-                    return `<td style="color: ${color}; font-weight: 500;">${v}</td>`;
+                    cls = n > 0 ? "pos" : (n < 0 ? "neg" : "");
                 }
 
-                // ⑤業界/セクター
-                if(h === "⑤業界/セクター") {
-                    return `<td style="text-align:left;"><span class="badge">${v}</span></td>`;
+                if (h === "⑭判定") {
+                    if (v === "超割安") style = "background:#ffcccc; color:#cc0000; font-weight:bold;";
+                    else if (v === "割安") style = "background:#fff3cd; color:#856404; font-weight:bold;";
                 }
 
-                return `<td>${formatM(v, h)}</td>`;
+                return `<td class="${cls}" style="${style}">${h.includes("業界")?v:formatM(v, h)}</td>`;
             }).join('')}</tr>`;
         }).join('');
+        document.getElementById('statCount').innerText = `${data.length} 銘柄`;
+    }
 
-        document.getElementById('statCount').innerText = `${data.length} 銘柄表示中`;
+    function sortT(col) {
+        asc = (currentSortCol === col) ? !asc : true;
+        currentSortCol = col;
+
+        allData.sort((a, b) => {
+            const parse = (val) => {
+                if (!val || val === "-") return -Infinity;
+                let clean = String(val).replace(/[^-0.9.]/g, '');
+                let n = parseFloat(clean);
+                return isNaN(n) ? String(val).toLowerCase() : n;
+            };
+            let va = parse(a[col]), vb = parse(b[col]);
+            if (typeof va === 'number' && typeof vb === 'number') return asc ? va - vb : vb - va;
+            return asc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+        });
+        render(allData);
     }
 
     function filterData() {
         const q = document.getElementById('filterInput').value.toLowerCase();
-        const filtered = allData.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
-        render(filtered);
-    }
-
-    // 数値と文字列を考慮したソート関数
-    function sortT(col) {
-        if (currentSortCol === col) {
-            asc = !asc;
-        } else {
-            asc = true;
-            currentSortCol = col;
-        }
-
-        allData.sort((a, b) => {
-            // カンマ、%、M$などを除去して数値化を試みる
-            let va = parseFloat(String(a[col]).replace(/[^-0.9.]/g, ''));
-            let vb = parseFloat(String(b[col]).replace(/[^-0.9.]/g, ''));
-            
-            if (isNaN(va) || isNaN(vb)) {
-                // 文字列比較
-                return asc ? String(a[col]).localeCompare(b[col]) : String(b[col]).localeCompare(a[col]);
-            }
-            // 数値比較
-            return asc ? va - vb : vb - va;
-        });
-        render(allData);
+        render(allData.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q))));
     }
 
     init();
