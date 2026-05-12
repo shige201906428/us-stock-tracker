@@ -61,7 +61,7 @@ def get_stock_data():
             margin = f"{(net_income / revenue):.2%}" if net_income and revenue and revenue > 0 else "-"
             
             dy_raw = info.get('dividendYield')
-            dividend_yield = f"{float(dy_raw):.2%}" if dy_raw not in [None, ""] else "0.00%"
+            dividend_yield = f"{(float(dy_raw) / 100):.2%}" if dy_raw not in [None, ""] else "0.00%"
 
             total_assets = info.get('totalAssets')
             total_equity = info.get('totalStockholderEquity')
