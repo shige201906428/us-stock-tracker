@@ -2,33 +2,38 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>US Stock Screener - Advanced Sort</title>
+    <title>US Stock Screener - Final Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root { --bg: #f5f7fa; --primary: #3498db; --text: #2c3e50; --border: #e1e8ed; }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; }
-        .controls { background: white; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input { flex-grow: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
-        .table-wrapper { background: white; border-radius: 6px; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 1400px; }
-        th { background: #f8f9fa; padding: 12px 8px; cursor: pointer; border-bottom: 2px solid var(--border); font-size: 11px; white-space: nowrap; }
+        header { background: #2c3e50; color: white; padding: 1rem; text-align: center; border-radius: 6px; margin-bottom: 15px; }
+        .controls { background: white; padding: 12px; border-radius: 6px; margin-bottom: 15px; display: flex; gap: 15px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        input { flex-grow: 1; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+        .table-wrapper { background: white; border-radius: 6px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; min-width: 1500px; }
+        th { background: #f8f9fa; padding: 12px 8px; cursor: pointer; border-bottom: 2px solid var(--border); font-size: 11px; white-space: nowrap; color: #7f8c8d; }
         th:hover { background: #edf2f7; }
-        td { padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; }
+        td { padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 12px; text-align: right; white-space: nowrap; }
         .t-left { text-align: left; }
         .ticker-link { color: var(--primary); text-decoration: none; font-weight: bold; }
+        .ticker-link:hover { text-decoration: underline; }
         .pos { color: #27ae60; font-weight: bold; }
         .neg { color: #e74c3c; font-weight: bold; }
+        #statCount { align-self: center; font-weight: bold; font-size: 14px; }
     </style>
 </head>
 <body>
 
+<header><h1>US Stock Financial Screener</h1></header>
+
 <div class="controls">
-    <input type="text" id="filterInput" placeholder="Tickerやセクターで検索..." onkeyup="filterData()">
-    <div id="statCount" style="align-self:center; font-weight:bold;">Loading...</div>
+    <input type="text" id="filterInput" placeholder="Ticker, セクター, 判定でフィルタ..." onkeyup="filterData()">
+    <div id="statCount">読み込み中...</div>
 </div>
 
 <div class="table-wrapper">
-    <table id="stockTable">
+    <table>
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
     </table>
@@ -50,19 +55,24 @@
     }
 
     async function init() {
-        const res = await fetch('data/stock_data.csv?v=' + Date.now());
-        const text = await res.text();
-        Papa.parse(text, {
-            header: true,
-            skipEmptyLines: true,
-            complete: r => {
-                allData = r.data;
-                render(allData);
-            }
-        });
+        try {
+            const res = await fetch('data/stock_data.csv?v=' + Date.now());
+            const text = await res.text();
+            Papa.parse(text, {
+                header: true,
+                skipEmptyLines: true,
+                complete: r => {
+                    allData = r.data;
+                    render(allData);
+                }
+            });
+        } catch (e) {
+            document.getElementById('statCount').innerText = "エラー: CSVが見つかりません";
+        }
     }
 
     function render(data) {
+        if (!data.length) return;
         const headers = Object.keys(data[0]);
         document.getElementById('tableHead').innerHTML = `<tr>${headers.map(h => `<th onclick="sortT('${h}')">${h}${currentSortCol===h?(asc?' ▲':' ▼'):''}</th>`).join('')}</tr>`;
         
@@ -74,20 +84,28 @@
 
                 if(h === "Ticker") return `<td class="t-left"><a class="ticker-link" href="https://www.tradingview.com/symbols/${v}/" target="_blank">${v}</a></td>`;
                 
+                // 成長率・利益率の色付け
                 if(h.includes("成長率") || h === "利益率") {
                     let n = parseFloat(v);
-                    cls = n > 0 ? "pos" : (n < 0 ? "neg" : "");
+                    if (!isNaN(n)) cls = n > 0 ? "pos" : (n < 0 ? "neg" : "");
                 }
 
+                // 判定セルの強調
                 if (h === "⑭判定") {
-                    if (v === "超割安") style = "background:#ffcccc; color:#cc0000; font-weight:bold;";
-                    else if (v === "割安") style = "background:#fff3cd; color:#856404; font-weight:bold;";
+                    if (v === "超割安") style = "background:#ffcccc; color:#cc0000; font-weight:bold; text-align:center;";
+                    else if (v === "割安") style = "background:#fff3cd; color:#856404; font-weight:bold; text-align:center;";
+                    else style = "text-align:center;";
+                }
+                
+                if (h === "⑯保有") {
+                    style = "text-align:center;";
+                    if (v.includes("保有")) style += "background:#e3f2fd; color:#1976d2; font-weight:bold;";
                 }
 
-                return `<td class="${cls}" style="${style}">${h.includes("業界")?v:formatM(v, h)}</td>`;
+                return `<td class="${cls}" style="${style}">${h.includes("セクター")?v:formatM(v, h)}</td>`;
             }).join('')}</tr>`;
         }).join('');
-        document.getElementById('statCount').innerText = `${data.length} 銘柄`;
+        document.getElementById('statCount').innerText = `${data.length} 銘柄を表示`;
     }
 
     function sortT(col) {
