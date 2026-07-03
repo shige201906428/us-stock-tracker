@@ -1,57 +1,22 @@
-name: US Stock Data Update
-
-on:
-  schedule:
-    - cron: '0 22 * * *'  # 07:00 JST
-    - cron: '30 14 * * *' # 23:30 JST
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install yfinance pandas
-          
-      - name: Run Scraper
-        run: python src/scraper.py
-        
-      - name: Commit and Push
+- name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # ★ここが重要：認証情報を強制セット
+          # 認証情報のセット
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           
-          # 一度最新を強制取得して、自分の変更を上に乗せる
-          git fetch origin main
-          git reset --mixed origin/main
-          
+          # 1. 変更されたファイルを先にステージング（キープ）する
           git add data/stock_data.csv
           
+          # 2. 変更がある場合のみコミットしてプル＆プッシュ
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
-            # 強制プッシュに近い形で確実に通す
+            
+            # リモートの最新状態を引っ張ってきてコンフリクトを自動結合（rebase）
+            git pull --rebase origin main
+            
+            # プッシュ
             git push origin main
           else
             echo "変更がないため終了します"
