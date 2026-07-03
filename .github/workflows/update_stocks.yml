@@ -6,17 +6,17 @@
           # 認証情報のセット
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           
-          # 1. 変更されたファイルを先にステージング（キープ）する
+          # 1. スクリプトが更新したファイルをステージング（キープ）
           git add data/stock_data.csv
           
           # 2. 変更がある場合のみコミットしてプル＆プッシュ
           if ! git diff --cached --exit-code --quiet; then
             git commit -m "自動更新: $(date +'%Y-%m-%d %H:%M:%S') (JST)"
             
-            # リモートの最新状態を引っ張ってきてコンフリクトを自動結合（rebase）
+            # リモート（GitHub側）に別の更新があっても、安全に自分の変更を上に乗せる
             git pull --rebase origin main
             
-            # プッシュ
+            # プッシュを実行
             git push origin main
           else
             echo "変更がないため終了します"
